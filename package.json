@@ -1,0 +1,32 @@
+{
+  "name": "sdktor",
+  "version": "1.0.0",
+  "description": "HTTP sdk generator",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "babel-node ./node_modules/.bin/mocha --compilers js:babel/register",
+    "lint": "eslint .",
+    "doc": "esdoc -c ./.esdoc.json"
+  },
+  "keywords": [
+    "sdk"
+  ],
+  "author": "Francisco Miranda",
+  "license": "MIT",
+  "dependencies": {
+    "lodash": "^3.6.0",
+    "superagent": "^1.1.0"
+  },
+  "devDependencies": {
+    "moniker": "^0.1.2",
+    "babel": "^5.8.34",
+    "babel-eslint": "^5.0.0-beta6",
+    "chai": "^3.3.0",
+    "debug": "^2.2.0",
+    "eslint": "^1.6.0",
+    "eslint-plugin-react": "^3.5.1",
+    "isparta": "^4.0.0",
+    "istanbul": "^0.3.22",
+    "mocha": "^2.3.3"
+  }
+}

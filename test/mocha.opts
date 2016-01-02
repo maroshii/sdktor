@@ -1,0 +1,4 @@
+--full-trace
+--debug
+--timeout 20000
+-R spec
