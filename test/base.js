@@ -2,76 +2,89 @@
 /* eslint-disable no-unused-expressions */
 
 import { expect } from 'chai';
+import nock from 'nock';
+import async from 'async';
 import sdktor from '../src';
 
-const ROOT_URI = 'https://dashboard.tutum.co/api/v1/';
-const AUTH = `Basic ${new Buffer('maroshii:2e024c866f8e9bbbee78cb6957cbf85c752d64c7639ea51b').toString('base64')}`;
+
+const HOST = 'tests.com';
+const ROOT_URI = `https://${HOST}/api/v1/`;
+const AUTH = `Basic ${new Buffer('user:pass').toString('base64')}`;
+
+const mockRoot = nock(ROOT_URI);
 const sdk = sdktor(ROOT_URI, {
   Accept: 'application/json',
   Authorization: AUTH,
-  Host: 'dashboard.tutum.co',
+  Host: HOST,
 });
 
-const assertCollection = ({ body }) => {
-  expect(body).to.be.an('object');
-  expect(body.meta).to.be.an('object');
-  expect(body.objects).to.be.an('array');
-}
-
-
-describe('Requests', () => {
-  describe('Basic HTTP Methods', () => {
-    it('defaults to GET', (done) => {
-      const get = sdk('service/');
-      get(function(err, data) {
-        if(err) return done(err);
-        assertCollection(data);
-        done();
-      });
+describe('Requests', () => {  
+  describe('HTTP Verbs', () => {
+    before(() => {
+      // expectations
+      mockRoot.get('/service/').reply(200,{payload: 'OK'});
+      mockRoot.post('/service/').reply(201,{ name: 'test', ok: true });
+      mockRoot.patch('/service/uuid/').reply(200,{ name: 'test2' });
+      mockRoot.put('/service/uuid/').reply(200,{ name: 'test2', ok: true });
+      mockRoot.delete('/service/uuid/').reply(200,{name: 'test2', ok: true });
     });
+
     it('get()', (done) => {
-      const get = sdk.get('service/');
-      get(function(err, data) {
+      sdk.get('service/')((err, data) => {
         if(err) return done(err);
-        assertCollection(data);
+        expect(`${ROOT_URI}service/`).to.equal(data.request.url);
+        expect(data.body.payload).to.equal('OK');
         done();
       });
     });
+
     it('post()', (done) => {
-      const post = sdk.post('service/');
-      post(function(err, data) {
-        expect(err.message).to.equal('Bad Request');
-        expect(err.status).to.equal(400);
+      sdk.post('service/')((err, data) => {
+        if(err) return done(err);
+        expect(`${ROOT_URI}service/`).to.equal(data.request.url);
+        expect(data.body.name).to.equal('test');
+        expect(data.body.ok).to.equal(true);
         done();
       });
     });
+    
     it('patch()', (done) => {
-      const post = sdk.patch('service/');
-      post(function(err, data) {
-        expect(err.message).to.equal('Method Not Allowed');
-        expect(err.status).to.equal(405);
+      sdk.patch('service/uuid/')((err, data) => {
+        if(err) return done(err);
+        expect(`${ROOT_URI}service/uuid/`).to.equal(data.request.url);
+        expect(data.body.name).to.equal('test2');
         done();
       });
     });
+
     it('put()', (done) => {
-      const post = sdk.put('service/');
-      post(function(err, data) {
-        expect(err.message).to.equal('Method Not Allowed');
-        expect(err.status).to.equal(405);
+      sdk.put('service/uuid/')((err, data) => {
+        if(err) return done(err);
+        expect(`${ROOT_URI}service/uuid/`).to.equal(data.request.url);
+        expect(data.body.name).to.equal('test2');
         done();
       });
     });
+
     it('del()', (done) => {
-      const post = sdk.del('service/');
-      post(function(err, data) {
-        expect(err.message).to.equal('Method Not Allowed');
-        expect(err.status).to.equal(405);
+      sdk.del('service/uuid/')((err, data) => {
+        if(err) return done(err);
+        expect(`${ROOT_URI}service/uuid/`).to.equal(data.request.url);
+        expect(data.body.name).to.equal('test2');
+        expect(data.body.ok).to.equal(true);
         done();
       });
+    });
+
+    after(() => {
+      if (!mockRoot.isDone()) {
+        console.error('pending mocks: %j', scope.pendingMocks());
+        throw new Error('The above requests didn\'t go through ^^');
+      }
     });
   });
   
-  describe.only('Recursive routes', () => {
+  describe('Recursive routes', () => {
     it('at() should allow for nested routes',() => {
       const root = sdk.at('service/');
       const leaf1 = root.at('list/');
@@ -88,11 +101,60 @@ describe('Requests', () => {
         expect(route.del).to.be.a('function');
         expect(route.url).to.be.a('function');
       });
-      expect(root.url()).to.equal(ROOT_URI + 'service/');
-      expect(leaf1.url()).to.equal(ROOT_URI + 'service/list/');
-      expect(leaf2.url()).to.equal(ROOT_URI + 'service/list/item/');
-      expect(leaf3.url()).to.equal(ROOT_URI + 'service/list/item/uuid/');
-      expect(leaf3b.url()).to.equal(ROOT_URI + 'service/list/item/other/');
+      expect(root.url()).to.equal(`${ROOT_URI}service/`);
+      expect(leaf1.url()).to.equal(`${ROOT_URI}service/list/`);
+      expect(leaf2.url()).to.equal(`${ROOT_URI}service/list/item/`);
+      expect(leaf3.url()).to.equal(`${ROOT_URI}service/list/item/uuid/`);
+      expect(leaf3b.url()).to.equal(`${ROOT_URI}service/list/item/other/`);
+    });
+
+    it('should call the correct endpoint', done => {
+      mockRoot
+        .get('/service/').reply(200,{ok: 'OK1'})
+        .get('/service/item/').reply(200,{ok: 'OK2'})
+        .post('/service/item/').reply(200,{ok: 'OK3'})
+        .patch('/service/item/').reply(200,{ok: 'OK4'})
+        .put('/service/item/').reply(200,{ok: 'OK5'})
+        .delete('/service/item/').reply(200,{ok: 'OK6'})
+        .get('/service/item/meta/').reply(200,{ok: 'OK7'})
+        .get('/service/item/children/').reply(200,{ok: 'OK8'})
+        .post('/service/item/children/').reply(200,{ok: 'OK9'})
+        .get('/service/item/children/info/').reply(200,{ok: 'OK10'})
+
+      const service = sdk.at('service/');
+      const serviceItem = service.at('item/');
+      const serviceChildren = serviceItem.at('children/');
+
+      const getServices = service.get();
+      const getService = serviceItem.get();
+      const createService = serviceItem.post();
+      const patchService = serviceItem.patch();
+      const updateService = serviceItem.put();
+      const deleteService = serviceItem.del();
+      const getServiceMeta = serviceItem.get('meta/');
+      const getServiceChildren = serviceChildren.get();
+      const createServiceChildren = serviceChildren.post();
+      const getServiceChildrenInfo = serviceChildren.get('info/');
+
+      const doAssert = (cb, n) => (err, data) => {
+        if(err) return cb(err);
+        expect(data.status).to.equal(200);
+        expect(data.body.ok).to.equal(`OK${n}`);
+        cb();
+      }
+
+      async.series([
+        cb => getServices(doAssert(cb,1)),
+        cb => getService(doAssert(cb,2)),
+        cb => createService(doAssert(cb,3)),
+        cb => patchService(doAssert(cb,4)),
+        cb => updateService(doAssert(cb,5)),
+        cb => deleteService(doAssert(cb,6)),
+        cb => getServiceMeta(doAssert(cb,7)),
+        cb => getServiceChildren(doAssert(cb,8)),
+        cb => createServiceChildren(doAssert(cb,9)),
+        cb => getServiceChildrenInfo(doAssert(cb,10)),
+      ],done);
     });
   });
 });

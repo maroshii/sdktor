@@ -3,11 +3,12 @@ import partial from 'lodash/function/partial';
 import merge from 'lodash/object/merge';
 
 function requestFactory (baseUri, headers, fn) {
-  return path => {
-    const req = fn(`${baseUri}${path}`);
+  const fabricateRequest = (path, callback) => {
+    const req = fn(`${baseUri}${path || ''}`);
     Object.keys(headers).forEach(key => req.set(key, headers[key]));
-    return req.end.bind(req);  
-  }
+    return req.end(callback);
+  };
+  return path => cb => fabricateRequest(path,cb);
 }
 
 function generateAPI(requestor) {
