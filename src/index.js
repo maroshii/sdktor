@@ -1,5 +1,6 @@
 import { get, post, put, del, patch } from 'superagent';
 import partial from 'lodash/function/partial';
+import merge from 'lodash/object/merge';
 
 function requestFactory (baseUri, headers, fn) {
   return path => {
@@ -9,18 +10,25 @@ function requestFactory (baseUri, headers, fn) {
   }
 }
 
+function generateAPI(requestor) {
+ return {
+  get: requestor(get),
+  post: requestor(post),
+  put: requestor(put),
+  del: requestor(del),
+  patch: requestor(patch),
+ }
+}
+
 function factory(baseUri, headers){
   const requestor = partial(requestFactory,baseUri,headers);
+  const api = generateAPI(requestor);
 
-  // Not doing api = getFn
-  // to avoid circular references
-  const api = (...args) => requestor(get)(...args);
+  api.at = (path, newHeaders) => {
+    return factory(baseUri + path, merge({},headers,newHeaders));
+  }
 
-  api.get = requestor(get);
-  api.post = requestor(post);
-  api.put = requestor(put);
-  api.del = requestor(del);
-  api.patch = requestor(patch);
+  api.url = () => baseUri;
 
   return api;
 }
