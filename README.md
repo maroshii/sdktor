@@ -46,7 +46,7 @@ All params that are not route params will be passed used as query string for get
 
 Paths are parsed using the [url-pattern](https://github.com/snd/url-pattern) library. Allowing for very flexible route definitions:
 
-```javacript
+```javascript
 const sdktor = require('sdktor');
 const sdk = sdktor('https://api.com/');
 const containersSdk = sdk.at('v:major(.:minor)/containers/');
