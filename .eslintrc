@@ -1,5 +1,5 @@
 {
-  "extends": "airbnb",
+
   "env": {
     "browser": true,
     "mocha": true,
@@ -10,9 +10,6 @@
     "vars-on-top": 0,
     "camelcase": 0
   },
-  "plugins": [
-    "react"
-  ],
   "globals": {
     "expect": true
   }
