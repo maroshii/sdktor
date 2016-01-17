@@ -3,18 +3,22 @@
 import { expect } from 'chai';
 import nock from 'nock';
 import async from 'async';
+import merge from 'lodash/object/merge';
 import sdktor from '../src';
 
 const HOST = 'tests.com';
 const ROOT_URI = `https://${HOST}/api/v1/`;
 const AUTH = `Basic ${new Buffer('user:pass').toString('base64')}`;
+const BASE_HEADERS = {
+  accept: 'application/json',
+  authorization: AUTH,
+  host: 'tests.com',
+  'accept-encoding': 'gzip, deflate',
+  'user-agent': 'sdktor/1.0',
+};
 
 const mockRoot = nock(ROOT_URI);
-const sdk = sdktor(ROOT_URI, {
-  Accept: 'application/json',
-  Authorization: AUTH,
-  Host: HOST,
-});
+const sdk = sdktor(ROOT_URI, BASE_HEADERS);
 
 const ensureNoPendingRequests = () => {
   if (!mockRoot.isDone()) {
@@ -213,6 +217,151 @@ describe('Parameterization', () => {
     patch({ uuid: 'qwerty', type: 'progfun' }, (err, data) => {
       expect(`${ROOT_URI}service/qwerty/more-data/progfun/`).to.equal(data.request.url);
       expect(data.body.payload).to.equal('OK');
+      done();
+    });
+  });
+
+  after(ensureNoPendingRequests);
+});
+
+describe('Request Data', () => {
+  before(() => {
+    mockRoot
+      .get('/service/qwerty/')
+        .query({ order: 'descending', count: 25, limit: -1 })
+        .reply(200, { payload: 'OK' })
+      .post('/service/qwerty/', {
+        name: 'David Bowie',
+        value: 69,
+        location: 'Madrid, Spain',
+      }).reply(200, { payload: 'OK' })
+      .patch('/service/qwerty/', {
+        RIP: true,
+      }).reply(200, { payload: 'OK' })
+      .put('/service/qwerty/', {
+        name: 'David Bowie',
+        value: 69,
+        location: 'Madrid, Spain',
+        RIP: true,
+      }).reply(200, { payload: 'OK' })
+      .delete('/service/qwerty/')
+        .reply(204);
+  });
+
+  it('get() data should be sent as query string and omit url params', (done) => {
+    const get = sdk.get('service/:uuid/');
+
+    get({
+      uuid: 'qwerty',
+      order: 'descending',
+      count: 25,
+      limit: -1,
+    }, (err, data) => {
+      expect(data.body.payload).to.equal('OK');
+      done();
+    });
+  });
+
+  it('post(), path() and put() data should be sent in the body and omit url params', (done) => {
+    const post = sdk.post('service/:uuid/');
+    const patch = sdk.patch('service/:uuid/');
+    const put = sdk.put('service/:uuid/');
+
+    expect(() => patch({ RIP: true }, () => {})).to.throw('no values provided for key `uuid`');
+
+    async.series([
+      cb => {
+        post({
+          uuid: 'qwerty',
+          name: 'David Bowie',
+          value: 69,
+          location: 'Madrid, Spain',
+        }, (err, data) => {
+          expect(data.body.payload).to.equal('OK');
+          cb();
+        });
+      },
+      cb => {
+        patch({ RIP: true, uuid: 'qwerty' }, (err, data) => {
+          expect(data.body.payload).to.equal('OK');
+          cb();
+        });
+      },
+      cb => {
+        put({
+          uuid: 'qwerty',
+          name: 'David Bowie',
+          value: 69,
+          location: 'Madrid, Spain',
+          RIP: true,
+        }, (err, data) => {
+          expect(data.body.payload).to.equal('OK');
+          cb();
+        });
+      },
+    ], done);
+  });
+
+  it('delete() should ignore non url params', (done) => {
+    const del = sdk.del('service/:uuid/');
+
+    del({ uuid: 'qwerty', invalid: true, more: 'stuff' }, (err, data) => {
+      expect(data.status).to.equal(204);
+      done();
+    });
+  });
+
+  after(ensureNoPendingRequests);
+});
+
+describe('Headers', () => {
+  const headers1 = {
+    'cache-control': 'no-cache',
+    'accept-language': 'da, en-gb;q=0.8, en;q=0.7',
+  };
+
+  const headers2 = {
+    'if-match': 'qwerty',
+    'max-forwards': 5,
+    'user-agent': 'sdktor/2.0',
+    'accept-language': 'en, es',
+  };
+
+  before(() => {
+    mockRoot.get('/service/').reply(204);
+    mockRoot.get('/service/').reply(204);
+    mockRoot.get('/service/qwerty/meta/').reply(204);
+  });
+
+  it('sends the base headers', (done) => {
+    const get = sdk.get('service/');
+    get((err, data) => {
+      expect(data.req.headers).to.eql(BASE_HEADERS);
+      expect(data.status).to.equal(204);
+      done();
+    });
+  });
+
+  it('at() accepts extra headers', (done) => {
+    const service = sdk.at('service/', headers1);
+    const get = service.get();
+
+    get((err, data) => {
+      expect(data.req.headers).to.eql(
+        merge({}, BASE_HEADERS, headers1)
+      );
+      done();
+    });
+  });
+
+  it('recursive routes headers override base headers', (done) => {
+    const service = sdk.at('service/:uuid/', headers1);
+    const get = service.get('meta/', headers2);
+
+    get({ uuid: 'qwerty' }, (err, data) => {
+      expect(data.req.headers).to.eql(
+        merge({}, BASE_HEADERS, headers1, headers2)
+      );
       done();
     });
   });

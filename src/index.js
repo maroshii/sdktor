@@ -1,4 +1,4 @@
-import { get, post, put, del, patch } from 'superagent';
+import superagent from 'superagent';
 import UrlPattern from 'url-pattern';
 import parseUrl from 'url-parse';
 import partial from 'lodash/function/partial';
@@ -27,7 +27,7 @@ function resolveParamsAndURI(pathRegexp = '', allParams = {}) {
   };
 }
 
-function requestFactory(baseUri = '', baseHeaders = {}, fn) {
+function requestFactory(baseUri = '', baseHeaders = {}, method) {
   return (clientPath, clientHeaders = {}) => (clientParams = {}, clientCallback) => {
     const fullPath = `${baseUri}${clientPath || ''}`;
     const [allParams, callback] = isFunction(clientParams) ?
@@ -36,23 +36,33 @@ function requestFactory(baseUri = '', baseHeaders = {}, fn) {
 
     const { params, path } = resolveParamsAndURI(fullPath, allParams);
 
-    const req = fn(path);
+    const req = superagent[method.toLowerCase()](path);
     const reqHeaders = merge({}, baseHeaders, clientHeaders);
 
-    Object.keys(reqHeaders).forEach(key => req.set(key, reqHeaders[key]));
+    Object.keys(reqHeaders)
+      .forEach(key => req.set(key, reqHeaders[key]));
 
-    // TODO: We should return a promise not the callback
+    switch (method) {
+      case 'DELETE':
+        break;
+      case 'GET':
+        req.query(params);
+        break;
+      default:
+        req.send(params);
+    }
+
     return req.end.bind(req)(callback);
   };
 }
 
 function generateAPI(requestor) {
   return {
-    get: requestor(get),
-    post: requestor(post),
-    put: requestor(put),
-    del: requestor(del),
-    patch: requestor(patch),
+    get: requestor('GET'),
+    post: requestor('POST'),
+    put: requestor('PUT'),
+    del: requestor('DELETE'),
+    patch: requestor('PATCH'),
   };
 }
 
