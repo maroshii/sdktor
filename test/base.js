@@ -157,3 +157,68 @@ describe('Recursive routes', () => {
 
   after(ensureNoPendingRequests);
 });
+
+describe('Parameterization', () => {
+  before(() => {
+    mockRoot.get('/service/qwerty/').reply(200, { payload: 'OK' });
+    mockRoot.post('/service/id_qwerty/v1/extra/').reply(200, { payload: 'OK' });
+    mockRoot.post('/service/id_qwerty/v2.5/').reply(200, { payload: 'OK' });
+    // mockRoot.post('/service/qwerty/more-data/progfun/').reply(200, { payload: 'OK' });
+  });
+
+  it('replace route parameters', (done) => {
+    const get = sdk.get('service/:uuid/');
+    get({ uuid: 'qwerty' }, (err, data) => {
+      expect(`${ROOT_URI}service/qwerty/`).to.equal(data.request.url);
+      expect(data.body.payload).to.equal('OK');
+      done();
+    });
+  });
+
+  it('replace route parameters with complex regexp', (done) => {
+    const post = sdk.post('service/id_:uuid/v:major(.:minor)/(*/)');
+    async.series([
+      cb => {
+        post({ uuid: 'qwerty', major: 1, _: 'extra' }, (err, data) => {
+          expect(`${ROOT_URI}service/id_qwerty/v1/extra/`).to.equal(data.request.url);
+          expect(data.body.payload).to.equal('OK');
+          cb();
+        });
+      },
+      cb => {
+        post({ uuid: 'qwerty', major: 2, minor: 5 }, (err, data) => {
+          expect(`${ROOT_URI}service/id_qwerty/v2.5/`).to.equal(data.request.url);
+          expect(data.body.payload).to.equal('OK');
+          cb();
+        });
+      },
+    ], done);
+  });
+
+  it('should throw an error if a required param is not provided', () => {
+    const get = sdk.get('service/:uuid/(:type/)');
+    expect(() => get(() => {}))
+      .to.throw('no values provided for key `uuid`');
+    expect(() => get({ type: 'indiferent' }, () => {}))
+      .to.throw('no values provided for key `uuid`');
+    expect(() => get({ uuid: 'id' }, () => {}))
+      .to.not.throw(Error);
+  });
+
+  // TODO: Fix this test.
+  // resolveParamsAndURI() should be moved into
+  // fabricateRequest() to resolve parents params
+  it.skip('should resolve recursive routes params', (done) => {
+    const service = sdk.at('service/');
+    const item = service.at(':uuid/');
+    const get = item.get('more-data/:type/');
+
+    get({ uuid: 'qwerty', type: 'progfun' }, (err, data) => {
+      expect(`${ROOT_URI}service/qwerty/more-data/progfun/`).to.equal(data.request.url);
+      expect(data.body.payload).to.equal('OK');
+      done();
+    });
+  });
+
+  after(ensureNoPendingRequests);
+});

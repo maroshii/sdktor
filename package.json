@@ -15,7 +15,8 @@
   "license": "MIT",
   "dependencies": {
     "lodash": "^3.6.0",
-    "superagent": "^1.1.0"
+    "superagent": "^1.1.0",
+    "url-pattern": "^1.0.1"
   },
   "devDependencies": {
     "async": "^1.5.2",
