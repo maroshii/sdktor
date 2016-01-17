@@ -2,7 +2,7 @@
   "name": "sdktor",
   "description": "HTTP sdk generator",
   "version": "0.0.0-using-semantic-release",
-  "main": "src/index.js",
+  "main": "dist/index.js",
   "scripts": {
     "commit": "git-cz",
     "clean": "rimraf dist coverage",
