@@ -42,7 +42,7 @@ getPrivateGists({since: now },log);
 
 Routes can be defined recursively with the `at()` method. Regular expressions are supported as well.
 
-All params that are not route params will be passed used as query string for get requests and in the body for all other methods.
+All params that are not route params will be passed as query string for get requests and in the body for all other methods.
 
 Paths are parsed using the [url-pattern](https://github.com/snd/url-pattern) library. Allowing for very flexible route definitions:
 
@@ -55,7 +55,7 @@ const { get, post, path, put, del } = containersSdk.at(':id/');
 
 const getOne = get('', {'cache-control': 'no-cache'}); 
 const getMeta = get('meta/');
-const create = post();
+const create = containersSdk.post();
 const update = put();
 const patch  = patch();
 const remove = del();
