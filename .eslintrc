@@ -6,15 +6,9 @@
     "node": true
   },
   "rules": {
-    "react/jsx-uses-react": 2,
-    "react/jsx-uses-vars": 2,
-    "react/react-in-jsx-scope": 2,
-
     "no-var": 0,
     "vars-on-top": 0,
-    "camelcase": 0,
-
-    "comma-dangle": [2, "always-multiline"]
+    "camelcase": 0
   },
   "plugins": [
     "react"
