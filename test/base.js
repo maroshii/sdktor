@@ -163,7 +163,7 @@ describe('Parameterization', () => {
     mockRoot.get('/service/qwerty/').reply(200, { payload: 'OK' });
     mockRoot.post('/service/id_qwerty/v1/extra/').reply(200, { payload: 'OK' });
     mockRoot.post('/service/id_qwerty/v2.5/').reply(200, { payload: 'OK' });
-    // mockRoot.post('/service/qwerty/more-data/progfun/').reply(200, { payload: 'OK' });
+    mockRoot.patch('/service/qwerty/more-data/progfun/').reply(200, { payload: 'OK' });
   });
 
   it('replace route parameters', (done) => {
@@ -205,15 +205,12 @@ describe('Parameterization', () => {
       .to.not.throw(Error);
   });
 
-  // TODO: Fix this test.
-  // resolveParamsAndURI() should be moved into
-  // fabricateRequest() to resolve parents params
-  it.skip('should resolve recursive routes params', (done) => {
+  it('should resolve recursive routes params', (done) => {
     const service = sdk.at('service/');
     const item = service.at(':uuid/');
-    const get = item.get('more-data/:type/');
+    const patch = item.patch('more-data/:type/');
 
-    get({ uuid: 'qwerty', type: 'progfun' }, (err, data) => {
+    patch({ uuid: 'qwerty', type: 'progfun' }, (err, data) => {
       expect(`${ROOT_URI}service/qwerty/more-data/progfun/`).to.equal(data.request.url);
       expect(data.body.payload).to.equal('OK');
       done();

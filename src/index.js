@@ -1,45 +1,48 @@
 import { get, post, put, del, patch } from 'superagent';
 import UrlPattern from 'url-pattern';
+import parseUrl from 'url-parse';
 import partial from 'lodash/function/partial';
 import isFunction from 'lodash/lang/isFunction';
 import merge from 'lodash/object/merge';
 import omit from 'lodash/object/omit';
 
 function resolveParamsAndURI(pathRegexp = '', allParams = {}) {
-  if (pathRegexp === '') {
+  if (!pathRegexp) {
     return { path: pathRegexp, params: allParams };
   }
 
-  const route = new UrlPattern(pathRegexp);
-  const path = route.stringify(allParams);
+  const url = parseUrl(pathRegexp);
+  const route = new UrlPattern(url.pathname);
+
+  url.set('pathname', route.stringify(allParams));
+
   const params = omit(
     allParams,
-    Object.keys(route.match(path))
+    Object.keys(route.match(url.pathname))
   );
 
-  return { path, params };
+  return {
+    params,
+    path: url.toString(),
+  };
 }
 
-function requestFactory(baseUri, headers, fn) {
-  const fabricateRequest = (path, callback) => {
-    const req = fn(`${baseUri}${path || ''}`);
-    Object.keys(headers).forEach(key => req.set(key, headers[key]));
+function requestFactory(baseUri = '', baseHeaders = {}, fn) {
+  return (clientPath, clientHeaders = {}) => (clientParams = {}, clientCallback) => {
+    const fullPath = `${baseUri}${clientPath || ''}`;
+    const [allParams, callback] = isFunction(clientParams) ?
+      [{}, clientParams] :
+      [clientParams, clientCallback];
+
+    const { params, path } = resolveParamsAndURI(fullPath, allParams);
+
+    const req = fn(path);
+    const reqHeaders = merge({}, baseHeaders, clientHeaders);
+
+    Object.keys(reqHeaders).forEach(key => req.set(key, reqHeaders[key]));
 
     // TODO: We should return a promise not the callback
     return req.end.bind(req)(callback);
-  };
-
-  return path => (params = {}, cb) => {
-    const [_params, _cb] = isFunction(params) ?
-      [{}, params] :
-      [params, cb];
-
-    const {
-      params: requestData,
-      path: requestUri,
-    } = resolveParamsAndURI(path, _params);
-
-    fabricateRequest(requestUri, _cb);
   };
 }
 
