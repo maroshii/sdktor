@@ -1,16 +1,12 @@
 import superagent from 'superagent';
 import UrlPattern from 'url-pattern';
 import parseUrl from 'url-parse';
+import { fromCallback } from 'bluebird';
 import partial from 'lodash/function/partial';
-import isFunction from 'lodash/lang/isFunction';
 import merge from 'lodash/object/merge';
 import omit from 'lodash/object/omit';
 
-function resolveParamsAndURI(pathRegexp = '', allParams = {}) {
-  if (!pathRegexp) {
-    return { path: pathRegexp, params: allParams };
-  }
-
+function resolveParamsAndURI(pathRegexp, allParams) {
   const url = parseUrl(pathRegexp);
   const route = new UrlPattern(url.pathname);
 
@@ -27,13 +23,9 @@ function resolveParamsAndURI(pathRegexp = '', allParams = {}) {
   };
 }
 
-function requestFactory(baseUri = '', baseHeaders = {}, method) {
-  return (clientPath, clientHeaders = {}) => (clientParams = {}, clientCallback) => {
+function requestFactory(baseUri, baseHeaders, method) {
+  return (clientPath, clientHeaders = {}) => (allParams = {}) => fromCallback((callback) => {
     const fullPath = `${baseUri}${clientPath || ''}`;
-    const [allParams, callback] = isFunction(clientParams) ?
-      [{}, clientParams] :
-      [clientParams, clientCallback];
-
     const { params, path } = resolveParamsAndURI(fullPath, allParams);
 
     const req = superagent[method.toLowerCase()](path);
@@ -51,9 +43,8 @@ function requestFactory(baseUri = '', baseHeaders = {}, method) {
       default:
         req.send(params);
     }
-
     return req.end.bind(req)(callback);
-  };
+  });
 }
 
 function generateAPI(requestor) {
@@ -66,7 +57,7 @@ function generateAPI(requestor) {
   };
 }
 
-function factory(baseUri, headers) {
+function factory(baseUri = '', headers = {}) {
   const requestor = partial(requestFactory, baseUri, headers);
   const api = generateAPI(requestor);
 

@@ -2,7 +2,7 @@
 
 import { expect } from 'chai';
 import nock from 'nock';
-import async from 'async';
+import { all } from 'bluebird';
 import merge from 'lodash/object/merge';
 import sdktor from '../src';
 
@@ -37,50 +37,62 @@ describe('HTTP Verbs', () => {
   });
 
   it('get()', (done) => {
-    sdk.get('service/')((err, data) => {
-      if (err) return done(err);
+    const get = sdk.get('service/');
+
+    get().then((data) => {
       expect(`${ROOT_URI}service/`).to.equal(data.request.url);
       expect(data.body.payload).to.equal('OK');
       done();
-    });
+    })
+    .catch(done);
   });
 
   it('post()', (done) => {
-    sdk.post('service/')((err, data) => {
-      if (err) return done(err);
-      expect(`${ROOT_URI}service/`).to.equal(data.request.url);
-      expect(data.body.name).to.equal('test');
-      expect(data.body.ok).to.equal(true);
-      done();
-    });
+    const post = sdk.post('service/');
+
+    post()
+      .then((data) => {
+        expect(`${ROOT_URI}service/`).to.equal(data.request.url);
+        expect(data.body.name).to.equal('test');
+        expect(data.body.ok).to.equal(true);
+        done();
+      })
+      .catch(done);
   });
 
   it('patch()', (done) => {
-    sdk.patch('service/uuid/')((err, data) => {
-      if (err) return done(err);
-      expect(`${ROOT_URI}service/uuid/`).to.equal(data.request.url);
-      expect(data.body.name).to.equal('test2');
-      done();
-    });
+    const patch = sdk.patch('service/uuid/');
+
+    patch()
+      .then((data) => {
+        expect(`${ROOT_URI}service/uuid/`).to.equal(data.request.url);
+        expect(data.body.name).to.equal('test2');
+        done();
+      })
+      .catch(done);
   });
 
   it('put()', (done) => {
-    sdk.put('service/uuid/')((err, data) => {
-      if (err) return done(err);
-      expect(`${ROOT_URI}service/uuid/`).to.equal(data.request.url);
-      expect(data.body.name).to.equal('test2');
-      done();
-    });
+    const put = sdk.put('service/uuid/');
+    put()
+      .then((data) => {
+        expect(`${ROOT_URI}service/uuid/`).to.equal(data.request.url);
+        expect(data.body.name).to.equal('test2');
+        done();
+      })
+      .catch(done);
   });
 
   it('del()', (done) => {
-    sdk.del('service/uuid/')((err, data) => {
-      if (err) return done(err);
-      expect(`${ROOT_URI}service/uuid/`).to.equal(data.request.url);
-      expect(data.body.name).to.equal('test2');
-      expect(data.body.ok).to.equal(true);
-      done();
-    });
+    const del = sdk.del('service/uuid/');
+    del()
+      .then((data) => {
+        expect(`${ROOT_URI}service/uuid/`).to.equal(data.request.url);
+        expect(data.body.name).to.equal('test2');
+        expect(data.body.ok).to.equal(true);
+        done();
+      })
+      .catch(done);
   });
 
   after(ensureNoPendingRequests);
@@ -127,36 +139,35 @@ describe('Recursive routes', () => {
     const serviceItem = service.at('item/');
     const serviceChildren = serviceItem.at('children/');
 
-    const getServices = service.get();
-    const getService = serviceItem.get();
-    const createService = serviceItem.post();
-    const patchService = serviceItem.patch();
-    const updateService = serviceItem.put();
-    const deleteService = serviceItem.del();
-    const getServiceMeta = serviceItem.get('meta/');
-    const getServiceChildren = serviceChildren.get();
-    const createServiceChildren = serviceChildren.post();
-    const getServiceChildrenInfo = serviceChildren.get('info/');
+    const getServices = service.get()();
+    const getService = serviceItem.get()();
+    const createService = serviceItem.post()();
+    const patchService = serviceItem.patch()();
+    const updateService = serviceItem.put()();
+    const deleteService = serviceItem.del()();
+    const getServiceMeta = serviceItem.get('meta/')();
+    const getServiceChildren = serviceChildren.get()();
+    const createServiceChildren = serviceChildren.post()();
+    const getServiceChildrenInfo = serviceChildren.get('info/')();
 
-    const doAssert = (cb, n) => (err, data) => {
-      if (err) return cb(err);
+    const assertPromise = n => data => {
       expect(data.status).to.equal(200);
       expect(data.body.ok).to.equal(`OK${n}`);
-      cb();
     };
 
-    async.series([
-      cb => getServices(doAssert(cb, 1)),
-      cb => getService(doAssert(cb, 2)),
-      cb => createService(doAssert(cb, 3)),
-      cb => patchService(doAssert(cb, 4)),
-      cb => updateService(doAssert(cb, 5)),
-      cb => deleteService(doAssert(cb, 6)),
-      cb => getServiceMeta(doAssert(cb, 7)),
-      cb => getServiceChildren(doAssert(cb, 8)),
-      cb => createServiceChildren(doAssert(cb, 9)),
-      cb => getServiceChildrenInfo(doAssert(cb, 10)),
-    ], done);
+    all([
+      getServices.then(assertPromise(1)),
+      getService.then(assertPromise(2)),
+      createService.then(assertPromise(3)),
+      patchService.then(assertPromise(4)),
+      updateService.then(assertPromise(5)),
+      deleteService.then(assertPromise(6)),
+      getServiceMeta.then(assertPromise(7)),
+      getServiceChildren.then(assertPromise(8)),
+      createServiceChildren.then(assertPromise(9)),
+      getServiceChildrenInfo.then(assertPromise(10)),
+    ]).then(() => done())
+      .catch(done);
   });
 
   after(ensureNoPendingRequests);
@@ -168,45 +179,50 @@ describe('Parameterization', () => {
     mockRoot.post('/service/id_qwerty/v1/extra/').reply(200, { payload: 'OK' });
     mockRoot.post('/service/id_qwerty/v2.5/').reply(200, { payload: 'OK' });
     mockRoot.patch('/service/qwerty/more-data/progfun/').reply(200, { payload: 'OK' });
+    mockRoot.get('/service/id/').reply(204);
   });
 
   it('replace route parameters', (done) => {
     const get = sdk.get('service/:uuid/');
-    get({ uuid: 'qwerty' }, (err, data) => {
-      expect(`${ROOT_URI}service/qwerty/`).to.equal(data.request.url);
-      expect(data.body.payload).to.equal('OK');
-      done();
-    });
+    get({ uuid: 'qwerty' })
+      .then(data => {
+        expect(`${ROOT_URI}service/qwerty/`).to.equal(data.request.url);
+        expect(data.body.payload).to.equal('OK');
+        done();
+      });
   });
 
-  it('replace route parameters with complex regexp', (done) => {
+  it('replace route parameters with complex regexp', done => {
     const post = sdk.post('service/id_:uuid/v:major(.:minor)/(*/)');
-    async.series([
-      cb => {
-        post({ uuid: 'qwerty', major: 1, _: 'extra' }, (err, data) => {
-          expect(`${ROOT_URI}service/id_qwerty/v1/extra/`).to.equal(data.request.url);
-          expect(data.body.payload).to.equal('OK');
-          cb();
-        });
-      },
-      cb => {
-        post({ uuid: 'qwerty', major: 2, minor: 5 }, (err, data) => {
-          expect(`${ROOT_URI}service/id_qwerty/v2.5/`).to.equal(data.request.url);
-          expect(data.body.payload).to.equal('OK');
-          cb();
-        });
-      },
-    ], done);
+
+    const promises = [
+      post({ uuid: 'qwerty', major: 1, _: 'extra' }).then(data => {
+        expect(`${ROOT_URI}service/id_qwerty/v1/extra/`).to.equal(data.request.url);
+        expect(data.body.payload).to.equal('OK');
+      }),
+      post({ uuid: 'qwerty', major: 2, minor: 5 }).then(data => {
+        expect(`${ROOT_URI}service/id_qwerty/v2.5/`).to.equal(data.request.url);
+        expect(data.body.payload).to.equal('OK');
+      }),
+    ];
+
+    all(promises)
+      .then(() => done())
+      .catch(done);
   });
 
-  it('should throw an error if a required param is not provided', () => {
+  it('should throw an error if a required param is not provided', done => {
     const get = sdk.get('service/:uuid/(:type/)');
-    expect(() => get(() => {}))
-      .to.throw('no values provided for key `uuid`');
-    expect(() => get({ type: 'indiferent' }, () => {}))
-      .to.throw('no values provided for key `uuid`');
-    expect(() => get({ uuid: 'id' }, () => {}))
-      .to.not.throw(Error);
+
+    get().catch(err => {
+      expect(err.message).to.equal('no values provided for key `uuid`');
+      get({ type: 'indiferent' }).catch(err2 => {
+        expect(err2.message).to.equal('no values provided for key `uuid`');
+        get({ uuid: 'id' }).then(() => {
+          done();
+        }).catch(done);
+      });
+    });
   });
 
   it('should resolve recursive routes params', (done) => {
@@ -214,7 +230,7 @@ describe('Parameterization', () => {
     const item = service.at(':uuid/');
     const patch = item.patch('more-data/:type/');
 
-    patch({ uuid: 'qwerty', type: 'progfun' }, (err, data) => {
+    patch({ uuid: 'qwerty', type: 'progfun' }).then(data => {
       expect(`${ROOT_URI}service/qwerty/more-data/progfun/`).to.equal(data.request.url);
       expect(data.body.payload).to.equal('OK');
       done();
@@ -235,9 +251,6 @@ describe('Request Data', () => {
         value: 69,
         location: 'Madrid, Spain',
       }).reply(200, { payload: 'OK' })
-      .patch('/service/qwerty/', {
-        RIP: true,
-      }).reply(200, { payload: 'OK' })
       .put('/service/qwerty/', {
         name: 'David Bowie',
         value: 69,
@@ -250,62 +263,51 @@ describe('Request Data', () => {
 
   it('get() data should be sent as query string and omit url params', (done) => {
     const get = sdk.get('service/:uuid/');
-
     get({
       uuid: 'qwerty',
       order: 'descending',
       count: 25,
       limit: -1,
-    }, (err, data) => {
+    }).then(data => {
       expect(data.body.payload).to.equal('OK');
       done();
     });
   });
 
-  it('post(), path() and put() data should be sent in the body and omit url params', (done) => {
+  it('patch(), post() and put() data should be sent in the body and omit url params', (done) => {
     const post = sdk.post('service/:uuid/');
     const patch = sdk.patch('service/:uuid/');
     const put = sdk.put('service/:uuid/');
 
-    expect(() => patch({ RIP: true }, () => {})).to.throw('no values provided for key `uuid`');
-
-    async.series([
-      cb => {
-        post({
-          uuid: 'qwerty',
-          name: 'David Bowie',
-          value: 69,
-          location: 'Madrid, Spain',
-        }, (err, data) => {
-          expect(data.body.payload).to.equal('OK');
-          cb();
-        });
-      },
-      cb => {
-        patch({ RIP: true, uuid: 'qwerty' }, (err, data) => {
-          expect(data.body.payload).to.equal('OK');
-          cb();
-        });
-      },
-      cb => {
-        put({
-          uuid: 'qwerty',
-          name: 'David Bowie',
-          value: 69,
-          location: 'Madrid, Spain',
-          RIP: true,
-        }, (err, data) => {
-          expect(data.body.payload).to.equal('OK');
-          cb();
-        });
-      },
-    ], done);
+    all([
+      patch({ RIP: true }).catch(({ message }) => {
+        expect(message).to.equal('no values provided for key `uuid`');
+      }),
+      post({
+        uuid: 'qwerty',
+        name: 'David Bowie',
+        value: 69,
+        location: 'Madrid, Spain',
+      }).then(data => {
+        expect(data.body.payload).to.equal('OK');
+      }),
+      put({
+        uuid: 'qwerty',
+        name: 'David Bowie',
+        value: 69,
+        location: 'Madrid, Spain',
+        RIP: true,
+      }).then(data => {
+        expect(data.body.payload).to.equal('OK');
+      }),
+    ]).then(() => done())
+      .catch(done);
   });
 
   it('delete() should ignore non url params', (done) => {
     const del = sdk.del('service/:uuid/');
 
-    del({ uuid: 'qwerty', invalid: true, more: 'stuff' }, (err, data) => {
+    del({ uuid: 'qwerty', invalid: true, more: 'stuff' }).then(data => {
       expect(data.status).to.equal(204);
       done();
     });
@@ -335,7 +337,7 @@ describe('Headers', () => {
 
   it('sends the base headers', (done) => {
     const get = sdk.get('service/');
-    get((err, data) => {
+    get().then(data => {
       expect(data.req.headers).to.eql(BASE_HEADERS);
       expect(data.status).to.equal(204);
       done();
@@ -346,7 +348,7 @@ describe('Headers', () => {
     const service = sdk.at('service/', headers1);
     const get = service.get();
 
-    get((err, data) => {
+    get().then(data => {
       expect(data.req.headers).to.eql(
         merge({}, BASE_HEADERS, headers1)
       );
@@ -358,7 +360,7 @@ describe('Headers', () => {
     const service = sdk.at('service/:uuid/', headers1);
     const get = service.get('meta/', headers2);
 
-    get({ uuid: 'qwerty' }, (err, data) => {
+    get({ uuid: 'qwerty' }).then(data => {
       expect(data.req.headers).to.eql(
         merge({}, BASE_HEADERS, headers1, headers2)
       );

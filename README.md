@@ -13,7 +13,6 @@ npm install sdktor --save
 Supports all major HTTP verbs: __GET__ __POST__ __PATH__ __PUT__ __DELETE__.
 
 ```javascript
-
 const sdktor = require('sdktor');
 
 // Create the SDK with configuration
@@ -28,15 +27,12 @@ const getPublicGists = sdk.get('/gists/private');
 const getPrivateGists = sdk.get('/gists/public');
 
 const now = new Date().toString();
-const log = (err,resp) => {
-  console.log(resp.body);
-};
+const then = ({body}) => console.log(body);
 
-getPublicGists(log);
-getPublicGists({since: now},log);
-//
-getPrivateGists(log);
-getPrivateGists({since: now },log);
+getPublicGists().then(then);
+getPublicGists({since: now}).then(then);
+getPrivateGists().then(then);
+getPrivateGists({since: now }).then(then);
 
 ```
 
@@ -62,18 +58,16 @@ const remove = del();
 
 // GET https://api.com/v1/containers/2/?source=newsletter
 // with no-cache header
-get({ major: 1, id: 2, source: 'newsletter' }, (err, data) => {}); 
+get({ major: 1, id: 2, source: 'newsletter' }).then(() => {}); 
 
 // GET https://api.com/v1.2/containers/3/meta/?order=ascending&all=1
-getMeta({ major: 1, id: 3 order: 'ascending', all: 1 }, (err, data) => {});
+getMeta({ major: 1, id: 3 order: 'ascending', all: 1 }).then(() => {});
 
 // POST https://api.com/v2.0-rc1/containers/4/ {name: 'nginx'}
-create({ major: 2, id: 4, minor: '0-rc1', name: 'nginx'}, (err, data) => {});
+create({ major: 2, id: 4, minor: '0-rc1', name: 'nginx'}).then(() => {});
 
-// throws, as major and id are required
-path({ name: 'nginx'}, (err, data) => {}); 
-
-
+// Error! major and id are required  
+path({ name: 'nginx'}).catch(err => {}); 
 
 ```
 
@@ -109,7 +103,7 @@ Sets up a put handler extending the path and headers from th current cursor loca
 
 Sets up a delete handler extending the path and headers from th current cursor location
 
-##### caller([params],callback => (err, response)) => null
+##### caller([params] => Promise
 
 Makes the call to the preconfigured path with all headers. If regular expression where used omits the url params from the data that will be sent in the request. DELETE requests omit all body and/or query string data.
 
