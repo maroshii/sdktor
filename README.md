@@ -1,5 +1,9 @@
 # sdktor
 
+[![travis build](https://img.shields.io/travis/maroshii/sdktor.svg?style=flat-square)](https://travis-ci.org/maroshii/sdktor)
+[![codecov coverage](https://img.shields.io/codecov/c/github/maroshii/sdktor.svg?style=flat-square)](https://codecov.io/github/maroshii/sdktor)
+[![codecov coverage](https://img.shields.io/npm/v/sdktor.svg?style=flat-square)](https://www.npmjs.com/package/sdktor)
+
 Simple and declarative sdk generator for the browser and nodejs. Uses [superagent](https://github.com/visionmedia/superagent) internally. Written in ES6 but an ES5 built is also provided. It's compatible with browserify and webpack.
 
 ## Installation
