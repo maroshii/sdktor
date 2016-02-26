@@ -23,7 +23,7 @@ function resolveParamsAndURI(pathRegexp, allParams) {
   };
 }
 
-function requestFactory(baseUri, baseHeaders, method) {
+function requestFactory(baseUri, baseHeaders, { raw }, method) {
   return (clientPath, clientHeaders = {}) => (allParams = {}) => fromCallback((callback) => {
     const fullPath = `${baseUri}${clientPath || ''}`;
     const { params, path } = resolveParamsAndURI(fullPath, allParams);
@@ -43,7 +43,10 @@ function requestFactory(baseUri, baseHeaders, method) {
       default:
         req.send(params);
     }
-    return req.end.bind(req)(callback);
+
+    return req.end((err, data) => {
+      return callback(err, raw ? data.body : data);
+    });
   });
 }
 
@@ -57,12 +60,16 @@ function generateAPI(requestor) {
   };
 }
 
-function factory(baseUri = '', headers = {}) {
-  const requestor = partial(requestFactory, baseUri, headers);
+function factory(baseUri = '', headers = {}, initOpts = {}) {
+  const requestor = partial(requestFactory, baseUri, headers, initOpts);
   const api = generateAPI(requestor);
 
-  api.at = (path, newHeaders) => {
-    return factory(baseUri + path, merge({}, headers, newHeaders));
+  api.at = (path, newHeaders, opts = {}) => {
+    return factory(
+      baseUri + path,
+      merge({}, headers, newHeaders),
+      merge({}, initOpts, opts)
+    );
   };
 
   api.url = () => baseUri;

@@ -370,3 +370,30 @@ describe('Headers', () => {
 
   after(ensureNoPendingRequests);
 });
+
+describe('Init Options', () => {
+  let localSdk;
+
+  before(() => {
+    localSdk = sdktor(ROOT_URI, BASE_HEADERS, { raw: true });
+    mockRoot.get('/service/').reply(200, { payload: 'OK' });
+    mockRoot.get('/service/uuid/').reply(200, { payload: 'OK' });
+  });
+
+  it('Should return raw data if raw init option is passed in', (done) => {
+    const get = localSdk.get('service/');
+    get().then(data => {
+      expect(data.payload).to.equal('OK');
+      done();
+    });
+  });
+
+  it('at() should override parent options', (done) => {
+    const serviceSdk = localSdk.at('service/', null, { raw: false });
+    const get = serviceSdk.get(':uuid/');
+    get({ uuid: 'uuid' }).then(data => {
+      expect(data.body.payload).to.equal('OK');
+      done();
+    });
+  });
+});
