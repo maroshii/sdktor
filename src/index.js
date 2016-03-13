@@ -23,31 +23,52 @@ function resolveParamsAndURI(pathRegexp, allParams) {
   };
 }
 
-function requestFactory(baseUri, baseHeaders, { raw }, method) {
-  return (clientPath, clientHeaders = {}) => (allParams = {}) => fromCallback((callback) => {
-    const fullPath = `${baseUri}${clientPath || ''}`;
-    const { params, path } = resolveParamsAndURI(fullPath, allParams);
-
-    const req = superagent[method.toLowerCase()](path);
-    const reqHeaders = merge({}, baseHeaders, clientHeaders);
-
-    Object.keys(reqHeaders)
-      .forEach(key => req.set(key, reqHeaders[key]));
-
-    switch (method) {
-      case 'DELETE':
-        break;
-      case 'GET':
-        req.query(params);
-        break;
-      default:
-        req.send(params);
+function requestFactory(baseUri, baseHeaders, optsConfig, method) {
+  const { postRequest } = optsConfig;
+  const returnFromPostRequest = r => {
+    if (!postRequest || !postRequest.length) {
+      return r;
     }
 
-    return req.end((err, data) => {
-      return callback(err, raw ? data.body : data);
-    });
-  });
+    /* eslint-disable no-param-reassign */
+    postRequest.forEach(fn => r = fn(r));
+    /* eslint-enable no-param-reassign */
+
+    return r;
+  };
+
+  return (clientPath, clientHeaders = {}) => (allParams = {}) => {
+    function asyncRequest(callback) {
+      const fullPath = `${baseUri}${clientPath || ''}`;
+      const { params, path } = resolveParamsAndURI(fullPath, allParams);
+
+      const req = superagent[method.toLowerCase()](path);
+      const reqHeaders = merge({}, baseHeaders, clientHeaders);
+
+      Object.keys(reqHeaders)
+        .forEach(key => req.set(key, reqHeaders[key]));
+
+      switch (method) {
+        case 'DELETE':
+          break;
+        case 'GET':
+          req.query(params);
+          break;
+        default:
+          req.send(params);
+      }
+
+      return req.end.bind(req)(callback);
+    }
+
+    return fromCallback(asyncRequest)
+      .catch((error) => {
+        // Allow the client to throw first
+        returnFromPostRequest(error.response);
+        throw error;
+      })
+      .then(returnFromPostRequest);
+  };
 }
 
 function generateAPI(requestor) {
@@ -60,15 +81,24 @@ function generateAPI(requestor) {
   };
 }
 
+function resolveOptions(baseOptions, childOptions) {
+  const { postRequest: parentPostRequest = [] } = baseOptions;
+  const { postRequest: childPostRequest = [] } = childOptions;
+  const postRequest = parentPostRequest.concat(childPostRequest);
+
+  return merge({}, baseOptions, childOptions, { postRequest });
+}
+
 function factory(baseUri = '', headers = {}, initOpts = {}) {
   const requestor = partial(requestFactory, baseUri, headers, initOpts);
+
   const api = generateAPI(requestor);
 
   api.at = (path, newHeaders, opts = {}) => {
     return factory(
       baseUri + path,
       merge({}, headers, newHeaders),
-      merge({}, initOpts, opts)
+      resolveOptions(initOpts, opts)
     );
   };
 

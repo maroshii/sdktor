@@ -79,11 +79,11 @@ Note: Only the pathname is parsed, the protocol is left as is.
 
 ## API
 
-##### sdktor(URI,HEADERS) => sdk
+##### sdktor(URI,HEADERS,options) => sdk
 
 This is the base function. All subsequent methods will extend HEADERS and append to URI
 
-##### sdk.at(path,HEADERS) => caller
+##### sdk.at(path,HEADERS,options) => caller
 
 Calls sdktor() resursively. All subsequent calls wil be relative to this path.
 
@@ -112,6 +112,54 @@ Sets up a delete handler extending the path and headers from th current cursor l
 Makes the call to the preconfigured path with all headers. If regular expression where used omits the url params from the data that will be sent in the request. DELETE requests omit all body and/or query string data.
 
 Note:  All methods can be called any number of times with no side effects.
+
+### Options
+
+##### options.postRequest
+
+**type**: `Array of (res) => res`
+
+An ordered array that will run for all children routes after the request succeeds.
+
+Eg:
+
+```js
+const postRequestOK = res => {
+  if(res >= 400) {
+    throw 'Request failed';
+  }
+
+  // We MUST return the response object
+  return res;
+}
+
+const postRequestAUTH = res => {
+  if(res === 401) {
+    throw 'Aunthentication failed';
+  }
+  
+  // Just an example.
+  // Mutating the body here is highly discourage,
+  resp.body.sdktor = true;
+
+  return res;
+}
+
+const sdk = sdktor('https://api.github.com', headerOpts, {
+  postRequest: [
+    postRequestOK,
+    postRequestAUTH,
+  ]
+
+  const getPublicGists = sdk.get('/gists/private');
+
+  getPublicGists().then(({ body }) => {
+    // body.sdktor === true
+  })
+
+});
+```
+
 
 ## License
 

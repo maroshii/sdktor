@@ -18,7 +18,9 @@ const BASE_HEADERS = {
 };
 
 const mockRoot = nock(ROOT_URI);
-const sdk = sdktor(ROOT_URI, BASE_HEADERS);
+const sdk = sdktor(ROOT_URI, BASE_HEADERS, {
+  postRequest: [r => r],
+});
 
 const ensureNoPendingRequests = () => {
   if (!mockRoot.isDone()) {
@@ -373,27 +375,119 @@ describe('Headers', () => {
 
 describe('Init Options', () => {
   let localSdk;
+  const basePostReq = res => {
+    res.body.succeeded = res.status !== 401; // eslint-disable-line no-param-reassign
+    return res;
+  };
 
   before(() => {
-    localSdk = sdktor(ROOT_URI, BASE_HEADERS, { raw: true });
+    localSdk = sdktor(ROOT_URI, BASE_HEADERS, {
+      postRequest: [basePostReq],
+    });
     mockRoot.get('/service/').reply(200, { payload: 'OK' });
+    mockRoot.get('/service/bad/').reply(401, { payload: 'FAILED' });
     mockRoot.get('/service/uuid/').reply(200, { payload: 'OK' });
+    mockRoot.get('/service/meta/').reply(200, { payload: 'OK' });
+    mockRoot.get('/service/').reply(200, { payload: 'OK' });
   });
 
-  it('Should return raw data if raw init option is passed in', (done) => {
+  it('Should apply post request middleware', (done) => {
     const get = localSdk.get('service/');
-    get().then(data => {
-      expect(data.payload).to.equal('OK');
+    get().then(({ body }) => {
+      expect(body.payload).to.equal('OK');
+      expect(body.succeeded).to.equal(true);
+      expect(Object.keys(body).length).to.equal(2);
       done();
     });
   });
 
-  it('at() should override parent options', (done) => {
-    const serviceSdk = localSdk.at('service/', null, { raw: false });
-    const get = serviceSdk.get(':uuid/');
-    get({ uuid: 'uuid' }).then(data => {
-      expect(data.body.payload).to.equal('OK');
+  it('Should apply post request middleware for unsucessful requests', (done) => {
+    const get = localSdk.get('service/bad/');
+    get().catch(({ response }) => {
+      const { body } = response;
+      expect(body.payload).to.equal('FAILED');
+      expect(body.succeeded).to.equal(false);
+      expect(Object.keys(body).length).to.equal(2);
       done();
     });
   });
+
+  it('Should apply postRequest middleware recursively ', (done) => {
+    const privatePostReq = res => {
+      res.body.uuid = 'my-uuid'; // eslint-disable-line no-param-reassign
+      return res;
+    };
+
+    const serviceSdk = localSdk.at('service/', null, {
+      postRequest: [privatePostReq],
+    });
+    const get = serviceSdk.get(':uuid/');
+    get({ uuid: 'uuid' }).then(({ body }) => {
+      expect(body.payload).to.equal('OK');
+      expect(body.succeeded).to.equal(true);
+      expect(body.uuid).to.equal('my-uuid');
+      expect(Object.keys(body).length).to.equal(3);
+      done();
+    });
+  });
+
+  it('should apply postRequest middleware in order', (done) => {
+    const newBasePostReq = res => {
+      res.body.succeeded = 'overriden'; // eslint-disable-line no-param-reassign
+      return res;
+    };
+
+    const post1 = res => {
+      res.body.post = 1; // eslint-disable-line no-param-reassign
+      return res;
+    };
+
+    const post2 = res => {
+      res.body.post = 2; // eslint-disable-line no-param-reassign
+      return res;
+    };
+
+    const post3 = res => {
+      res.body.post = 3; // eslint-disable-line no-param-reassign
+      return res;
+    };
+
+    const serviceSdk = localSdk.at('service/', null, {
+      postRequest: [newBasePostReq, post1, post2],
+    });
+
+    const meta = serviceSdk.at('meta/', null, {
+      postRequest: [post3],
+    });
+
+    meta.get()().then(({ body }) => {
+      expect(body.payload).to.equal('OK');
+      expect(body.succeeded).to.equal('overriden');
+      expect(body.post).to.equal(3);
+      expect(Object.keys(body).length).to.equal(3);
+
+      done();
+    });
+  });
+
+  it('should reject the promise if a middleware throws', (done) => {
+    const msg = `
+      This is my error.
+      There are many like it but this one is mine.`;
+
+    const errorPostReq = () => { throw new Error(msg); };
+    const serviceSdk = localSdk.at('service/', null, {
+      postRequest: [errorPostReq],
+    });
+
+    const get = serviceSdk.get();
+
+    get().catch(err => {
+      expect(err).to.be.instanceof(Error);
+      expect(err.message).to.equal(msg);
+      done();
+    });
+  });
+
+  after(ensureNoPendingRequests);
 });
