@@ -375,8 +375,15 @@ describe('Headers', () => {
 
 describe('Init Options', () => {
   let localSdk;
-  const basePostReq = res => {
-    res.body.succeeded = res.status !== 401; // eslint-disable-line no-param-reassign
+  const basePostReq = (res, ok) => {
+    if (res.status === 401) {
+      res.body.succeeded = false; // eslint-disable-line no-param-reassign
+      expect(ok).to.equal(false);
+    } else {
+      res.body.succeeded = true; // eslint-disable-line no-param-reassign
+      expect(ok).to.equal(true);
+    }
+
     return res;
   };
 
@@ -413,7 +420,8 @@ describe('Init Options', () => {
   });
 
   it('Should apply postRequest middleware recursively ', (done) => {
-    const privatePostReq = res => {
+    const privatePostReq = (res, ok) => {
+      expect(ok).to.equal(true);
       res.body.uuid = 'my-uuid'; // eslint-disable-line no-param-reassign
       return res;
     };
@@ -432,22 +440,26 @@ describe('Init Options', () => {
   });
 
   it('should apply postRequest middleware in order', (done) => {
-    const newBasePostReq = res => {
+    const newBasePostReq = (res, ok) => {
+      expect(ok).to.equal(true);
       res.body.succeeded = 'overriden'; // eslint-disable-line no-param-reassign
       return res;
     };
 
-    const post1 = res => {
+    const post1 = (res, ok) => {
+      expect(ok).to.equal(true);
       res.body.post = 1; // eslint-disable-line no-param-reassign
       return res;
     };
 
-    const post2 = res => {
+    const post2 = (res, ok) => {
+      expect(ok).to.equal(true);
       res.body.post = 2; // eslint-disable-line no-param-reassign
       return res;
     };
 
-    const post3 = res => {
+    const post3 = (res, ok) => {
+      expect(ok).to.equal(true);
       res.body.post = 3; // eslint-disable-line no-param-reassign
       return res;
     };
@@ -475,7 +487,10 @@ describe('Init Options', () => {
       This is my error.
       There are many like it but this one is mine.`;
 
-    const errorPostReq = () => { throw new Error(msg); };
+    const errorPostReq = (res, ok) => {
+      expect(ok).to.equal(true); // req succeeded, we throw anyways
+      throw new Error(msg);
+    };
     const serviceSdk = localSdk.at('service/', null, {
       postRequest: [errorPostReq],
     });

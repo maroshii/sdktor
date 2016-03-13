@@ -25,13 +25,13 @@ function resolveParamsAndURI(pathRegexp, allParams) {
 
 function requestFactory(baseUri, baseHeaders, optsConfig, method) {
   const { postRequest } = optsConfig;
-  const returnFromPostRequest = r => {
+  const returnFromPostRequest = (r, succeeded = true) => {
     if (!postRequest || !postRequest.length) {
       return r;
     }
 
     /* eslint-disable no-param-reassign */
-    postRequest.forEach(fn => r = fn(r));
+    postRequest.forEach(fn => r = fn(r, succeeded));
     /* eslint-enable no-param-reassign */
 
     return r;
@@ -64,7 +64,7 @@ function requestFactory(baseUri, baseHeaders, optsConfig, method) {
     return fromCallback(asyncRequest)
       .catch((error) => {
         // Allow the client to throw first
-        returnFromPostRequest(error.response);
+        returnFromPostRequest(error.response, false);
         throw error;
       })
       .then(returnFromPostRequest);
