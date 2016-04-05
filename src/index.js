@@ -6,16 +6,13 @@ import partial from 'lodash/function/partial';
 import merge from 'lodash/object/merge';
 import omit from 'lodash/object/omit';
 
-function resolveParamsAndURI(pathRegexp, allParams) {
+function resolveParamsAndURI(pathRegexp, allParams, parseOpts) {
   const url = parseUrl(pathRegexp);
-  const route = new UrlPattern(url.pathname);
+  const route = new UrlPattern(url.pathname, parseOpts);
 
   url.set('pathname', route.stringify(allParams));
 
-  const params = omit(
-    allParams,
-    Object.keys(route.match(url.pathname))
-  );
+  const params = omit(allParams, route.names);
 
   return {
     params,
@@ -24,7 +21,7 @@ function resolveParamsAndURI(pathRegexp, allParams) {
 }
 
 function requestFactory(baseUri, baseHeaders, optsConfig, method) {
-  const { postRequest } = optsConfig;
+  const { postRequest, parseOpts } = optsConfig;
   const returnFromPostRequest = (r, succeeded = true) => {
     if (!postRequest || !postRequest.length) {
       return r;
@@ -40,7 +37,11 @@ function requestFactory(baseUri, baseHeaders, optsConfig, method) {
   return (clientPath, clientHeaders = {}) => (allParams = {}) => {
     function asyncRequest(callback) {
       const fullPath = `${baseUri}${clientPath || ''}`;
-      const { params, path } = resolveParamsAndURI(fullPath, allParams);
+      const { params, path } = resolveParamsAndURI(
+        fullPath,
+        allParams,
+        parseOpts
+    );
 
       const req = superagent[method.toLowerCase()](path);
       const reqHeaders = merge({}, baseHeaders, clientHeaders);
@@ -63,8 +64,11 @@ function requestFactory(baseUri, baseHeaders, optsConfig, method) {
 
     return fromCallback(asyncRequest)
       .catch((error) => {
-        // Allow the client to throw first
-        returnFromPostRequest(error.response, false);
+        // Allow the client to throw first if it's an API error
+        if (error.response) {
+          returnFromPostRequest(error.response, false);
+        }
+
         throw error;
       })
       .then(returnFromPostRequest);
