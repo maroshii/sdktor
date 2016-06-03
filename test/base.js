@@ -387,15 +387,27 @@ describe('Init Options', () => {
     return res;
   };
 
+  const indentityBeforeSend  = data => {
+    expect(data).to.have.property('params');
+    expect(data).to.have.property('path');
+    expect(data).to.have.property('headers');
+    return data;
+  }
+
   before(() => {
     localSdk = sdktor(ROOT_URI, BASE_HEADERS, {
       postRequest: [basePostReq],
+      beforeSend: indentityBeforeSend,
     });
     mockRoot.get('/service/').reply(200, { payload: 'OK' });
     mockRoot.get('/service/bad/').reply(401, { payload: 'FAILED' });
     mockRoot.get('/service/uuid/').reply(200, { payload: 'OK' });
     mockRoot.get('/service/meta/').reply(200, { payload: 'OK' });
     mockRoot.get('/service/').reply(200, { payload: 'OK' });
+    mockRoot.get('/before-send/with-at/')
+      .reply(200, { payload: 'OK' });
+    mockRoot.get('/scoped/before-send/with-at-and/norris/kid/')
+      .reply(200, { payload: 'OK' });
   });
 
   it('Should apply post request middleware', (done) => {
@@ -500,6 +512,36 @@ describe('Init Options', () => {
     get().catch(err => {
       expect(err).to.be.instanceof(Error);
       expect(err.message).to.equal(msg);
+      done();
+    });
+  });
+
+  it('at() beforeSend should override root beforeSend', (done) => {
+    const beforeSend = ({ params, path, headers }) => {
+      return { params, headers, path: `${path}with-at/` };
+    }
+
+    const { get } = localSdk.at('before-send/', null, { beforeSend });
+    get()().then(({ req }) => {
+      expect(req.path).to.equal('/api/v1/before-send/with-at/');
+      done();
+    });
+  });
+
+  it('beforeSend appends params on the fly', (done) => {
+    const beforeSend = ({ params, path, headers }) => {
+      return {
+        params: merge(params, { context: 'scoped' }),
+        path: `${path}with-at-and/:chuck/:karate/`,
+        headers,
+      };
+    }
+
+    const { get } = localSdk.at(':context/', null, { beforeSend });
+    get('before-send/')({ chuck: 'norris', karate: 'kid'}).then(({ req }) => {
+      expect(req.path).to.equal(
+        '/api/v1/scoped/before-send/with-at-and/norris/kid/'
+      );
       done();
     });
   });

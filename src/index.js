@@ -5,10 +5,11 @@ import { fromCallback } from 'bluebird';
 import partial from 'lodash/function/partial';
 import merge from 'lodash/object/merge';
 import omit from 'lodash/object/omit';
+import compose from 'lodash/function/flowRight';
 
-function resolveParamsAndURI(pathRegexp, allParams, parseOpts) {
+function parseRequestData({ path: pathRegexp, params: allParams, headers }) {
   const url = parseUrl(pathRegexp);
-  const route = new UrlPattern(url.pathname, parseOpts);
+  const route = new UrlPattern(url.pathname);
 
   url.set('pathname', route.stringify(allParams));
 
@@ -16,12 +17,17 @@ function resolveParamsAndURI(pathRegexp, allParams, parseOpts) {
 
   return {
     params,
+    headers,
     path: url.toString(),
   };
 }
 
 function requestFactory(baseUri, baseHeaders, optsConfig, method) {
-  const { postRequest, parseOpts } = optsConfig;
+  const {
+    postRequest,
+    beforeSend,
+    parseOpts,
+  } = optsConfig;
   const returnFromPostRequest = (r, succeeded = true) => {
     if (!postRequest || !postRequest.length) {
       return r;
@@ -34,20 +40,21 @@ function requestFactory(baseUri, baseHeaders, optsConfig, method) {
     return r;
   };
 
+  const resolveRequestData = compose(parseRequestData, beforeSend);
+
   return (clientPath, clientHeaders = {}) => (allParams = {}) => {
     function asyncRequest(callback) {
       const fullPath = `${baseUri}${clientPath || ''}`;
-      const { params, path } = resolveParamsAndURI(
-        fullPath,
-        allParams,
-        parseOpts
-    );
+      const { params, path, headers } = resolveRequestData({
+        path: fullPath,
+        params: allParams,
+        headers: merge({}, baseHeaders, clientHeaders),
+      });
 
       const req = superagent[method.toLowerCase()](path);
-      const reqHeaders = merge({}, baseHeaders, clientHeaders);
 
-      Object.keys(reqHeaders)
-        .forEach(key => req.set(key, reqHeaders[key]));
+      Object.keys(headers)
+        .forEach(key => req.set(key, headers[key]));
 
       switch (method) {
         case 'DELETE':
@@ -85,16 +92,28 @@ function generateAPI(requestor) {
   };
 }
 
-function resolveOptions(baseOptions, childOptions) {
-  const { postRequest: parentPostRequest = [] } = baseOptions;
-  const { postRequest: childPostRequest = [] } = childOptions;
-  const postRequest = parentPostRequest.concat(childPostRequest);
+function resolveOptions(baseOptions = {}, childOptions = {}) {
+  const {
+    postRequest: parentPostRequest = [],
+    beforeSend: parentBeforeSend = p => p,
+  } = baseOptions;
+  const {
+    postRequest: childPostRequest = [],
+    beforeSend: childBeforeSend,
+   } = childOptions;
 
-  return merge({}, baseOptions, childOptions, { postRequest });
+  const postRequest = parentPostRequest.concat(childPostRequest);
+  const beforeSend = childBeforeSend || parentBeforeSend;
+  return merge({}, baseOptions, childOptions, { postRequest, beforeSend });
 }
 
 function factory(baseUri = '', headers = {}, initOpts = {}) {
-  const requestor = partial(requestFactory, baseUri, headers, initOpts);
+  const requestor = partial(
+    requestFactory,
+    baseUri,
+    headers,
+    resolveOptions(initOpts)
+  );
 
   const api = generateAPI(requestor);
 
