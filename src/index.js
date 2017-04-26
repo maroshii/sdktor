@@ -5,7 +5,8 @@ import { fromCallback } from 'bluebird';
 import partial from 'lodash/function/partial';
 import merge from 'lodash/object/merge';
 import omit from 'lodash/object/omit';
-import compose from 'lodash/function/flowRight';
+import compose from 'lodash/function/flow';
+import isFunction from 'lodash/lang/isFunction';
 
 function parseRequestData({ path: pathRegexp, params: allParams, headers }) {
   const url = parseUrl(pathRegexp);
@@ -32,7 +33,6 @@ function requestFactory(baseUri, baseHeaders, optsConfig, method) {
     if (!postRequest || !postRequest.length) {
       return r;
     }
-
     /* eslint-disable no-param-reassign */
     postRequest.forEach(fn => r = fn(r, succeeded));
     /* eslint-enable no-param-reassign */
@@ -40,7 +40,7 @@ function requestFactory(baseUri, baseHeaders, optsConfig, method) {
     return r;
   };
 
-  const resolveRequestData = compose(parseRequestData, beforeSend);
+  const resolveRequestData = compose(...beforeSend, parseRequestData);
 
   return (clientPath, clientHeaders = {}) => (allParams = {}) => {
     function asyncRequest(callback) {
@@ -93,17 +93,48 @@ function generateAPI(requestor) {
 }
 
 function resolveOptions(baseOptions = {}, childOptions = {}) {
-  const {
-    postRequest: parentPostRequest = [],
-    beforeSend: parentBeforeSend = p => p,
-  } = baseOptions;
-  const {
-    postRequest: childPostRequest = [],
-    beforeSend: childBeforeSend,
-   } = childOptions;
+  let parentBeforeSend,
+      parentPostRequest,
+      childBeforeSend,
+      childPostRequest;
+
+  // Format beforeSend
+  if (!baseOptions.beforeSend) {
+    parentBeforeSend = [];
+  } else if (isFunction(baseOptions.beforeSend)) {
+    parentBeforeSend = [baseOptions.beforeSend];
+  } else {
+    parentBeforeSend = baseOptions.beforeSend;
+  }
+
+  if (!childOptions.beforeSend) {
+    childBeforeSend = [];
+  } else if (isFunction(childOptions.beforeSend)) {
+    childBeforeSend = [childOptions.beforeSend];
+  } else {
+    childBeforeSend = childOptions.beforeSend;
+  }
+
+  // Format postRequest
+  if (!baseOptions.postRequest) {
+    parentPostRequest = [];
+  } else if (isFunction(baseOptions.postRequest)) {
+    parentPostRequest = [baseOptions.postRequest];
+  } else {
+    parentPostRequest = baseOptions.postRequest;
+  }
+
+
+  if (!childOptions.postRequest) {
+    childPostRequest = [];
+  } else if (isFunction(childOptions.postRequest)) {
+    childPostRequest = [childOptions.postRequest];
+  } else {
+    childPostRequest = childOptions.postRequest;
+  }
 
   const postRequest = parentPostRequest.concat(childPostRequest);
-  const beforeSend = childBeforeSend || parentBeforeSend;
+  const beforeSend = parentBeforeSend.concat(childBeforeSend);
   return merge({}, baseOptions, childOptions, { postRequest, beforeSend });
 }
 

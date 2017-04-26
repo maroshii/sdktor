@@ -408,6 +408,8 @@ describe('Init Options', () => {
       .reply(200, { payload: 'OK' });
     mockRoot.get('/scoped/before-send/with-at-and/norris/kid/')
       .reply(200, { payload: 'OK' });
+    mockRoot.get('/nested/before-sends/').reply(200, { payload: 'OK' });
+    mockRoot.get('/nested/post-requests/').reply(200, { payload: 'OK' });
   });
 
   it('Should apply post request middleware', (done) => {
@@ -542,6 +544,48 @@ describe('Init Options', () => {
       expect(req.path).to.equal(
         '/api/v1/scoped/before-send/with-at-and/norris/kid/'
       );
+      done();
+    });
+  });
+
+  it('nested beforeSends get called in order', (done) => {
+    const slots = Array(5).fill().map((_, i) => i);
+    const calls = [];
+    const beforeSends = slots.map((_, i) => data => {
+      calls.push(i);
+      return data;
+    });
+
+    const _sdk = sdktor(ROOT_URI, BASE_HEADERS, {
+      beforeSend: beforeSends.slice(0, -1),
+    });
+
+    _sdk
+      .at('', null ,{ beforeSend: beforeSends[beforeSends.length - 1 ]})
+      .get('nested/before-sends/')().then(({ req }) => {
+      expect(req.path).to.equal('/api/v1/nested/before-sends/');
+      expect(slots).to.eql(calls);
+      done();
+    });
+  });
+
+  it('nested postRequests get called in order', (done) => {
+    const slots = Array(5).fill().map((_, i) => i);
+    const calls = [];
+    const postRequests = slots.map((_, i) => data => {
+      calls.push(i);
+      return data;
+    });
+
+    const _sdk = sdktor(ROOT_URI, BASE_HEADERS, {
+      postRequest: postRequests.slice(0, -1),
+    });
+
+    _sdk
+      .at('', null ,{ postRequest: postRequests[postRequests.length - 1 ]})
+      .get('nested/post-requests/')().then(({ req }) => {
+      expect(req.path).to.equal('/api/v1/nested/post-requests/');
+      expect(slots).to.eql(calls);
       done();
     });
   });
