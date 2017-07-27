@@ -161,6 +161,13 @@ const sdk = sdktor('https://api.github.com', headerOpts, {
 ```
 
 
+## Flow
+
+Flow types are available [here](https://gist.github.com/maroshii/c263d1a2dadefd5dcd6b560dda31662c).
+
+_Note to self: Move libdef to [flow-typed](https://github.com/flowtype/flow-typed)_
+
+
 ## License
 
 The MIT License (MIT)
