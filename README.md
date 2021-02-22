@@ -1,3 +1,5 @@
+### THIS PROJECT IS DEPRECATED AND NOT MAINTAINED! Use at your own risk
+
 # sdktor
 
 [![travis build](https://img.shields.io/travis/maroshii/sdktor.svg?style=flat-square)](https://travis-ci.org/maroshii/sdktor)
